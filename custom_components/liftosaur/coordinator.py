@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import re
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
 from . import liftograph
@@ -22,12 +25,14 @@ from .api import (
     LiftosaurError,
 )
 from .const import (
+    CHANGE_CHECK_DAYS,
     CONF_DASHBOARDS,
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_MINUTES,
     DOMAIN,
     LOGGER,
 )
+from .schedule import WorkoutWindow, next_interval
 
 
 @dataclass
@@ -95,17 +100,65 @@ class LiftosaurCoordinator(DataUpdateCoordinator[dict[str, DashboardData]]):
 
     def __init__(self, hass: HomeAssistant, entry: LiftosaurConfigEntry, api: LiftosaurApi) -> None:
         minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_MINUTES)
+        self.normal_interval = timedelta(minutes=minutes)
+        self.workout_window = WorkoutWindow.from_options(entry.options)
         super().__init__(
             hass,
             LOGGER,
             config_entry=entry,
             name=DOMAIN,
-            update_interval=timedelta(minutes=minutes),
+            update_interval=next_interval(dt_util.now(), self.normal_interval, self.workout_window),
+            # Quick polls that find nothing new return the same data; don't
+            # wake every sensor and the backfill check for them.
+            always_update=False,
         )
         self.api = api
         self.backfill_lock = asyncio.Lock()
+        # Workouts seen at the last full refresh made inside the window.
+        self._history_fingerprint: str | None = None
+        self._last_full_refresh: datetime | None = None
+        self.full_refreshes = 0
 
     async def _async_update_data(self) -> dict[str, DashboardData]:
+        try:
+            return await self._update()
+        finally:
+            # Re-plan after every poll: switches to quick polls when the
+            # workout window opens and back when it closes.
+            self.update_interval = next_interval(dt_util.now(), self.normal_interval, self.workout_window)
+
+    async def _history_changed(self) -> tuple[bool, str | None]:
+        """Whether workouts logged recently differ from the last full refresh."""
+        since = (dt_util.utcnow() - timedelta(days=CHANGE_CHECK_DAYS)).date().isoformat()
+        try:
+            records = await self.api.list_history(start_date=since)
+        except LiftosaurError as err:
+            LOGGER.debug("Change check failed, refreshing fully: %s", err)
+            return True, None
+        ordered = sorted(records, key=lambda r: str(r.get("id")))
+        fingerprint = hashlib.sha256(json.dumps(ordered, sort_keys=True, default=str).encode()).hexdigest()
+        return fingerprint != self._history_fingerprint, fingerprint
+
+    async def _update(self) -> dict[str, DashboardData]:
+        fingerprint: str | None = None
+        window = self.workout_window
+        if window is not None and window.contains(dt_util.now()):
+            changed, fingerprint = await self._history_changed()
+            fresh = (
+                self._last_full_refresh is not None
+                and dt_util.utcnow() - self._last_full_refresh < self.normal_interval
+            )
+            if not changed and fresh and self.data is not None:
+                return self.data
+        data = await self._full_refresh()
+        # Remember what the dashboards were built from. Outside the window
+        # nothing is checked, so the first poll of the next window refreshes.
+        self._history_fingerprint = fingerprint
+        self._last_full_refresh = dt_util.utcnow()
+        self.full_refreshes += 1
+        return data
+
+    async def _full_refresh(self) -> dict[str, DashboardData]:
         try:
             listed = await self.api.list_dashboards()
             selected = self.config_entry.options.get(CONF_DASHBOARDS) or []

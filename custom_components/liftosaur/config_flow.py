@@ -12,6 +12,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -21,6 +22,7 @@ from homeassistant.helpers.selector import (
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
+    TimeSelector,
 )
 
 from .api import (
@@ -33,11 +35,19 @@ from .const import (
     CONF_BACKFILL_WEEKS,
     CONF_DASHBOARDS,
     CONF_SCAN_INTERVAL,
+    CONF_WORKOUT_END,
+    CONF_WORKOUT_INTERVAL,
+    CONF_WORKOUT_START,
+    CONF_WORKOUT_WINDOW,
     DEFAULT_BACKFILL_WEEKS,
     DEFAULT_SCAN_MINUTES,
+    DEFAULT_WORKOUT_END,
+    DEFAULT_WORKOUT_INTERVAL,
+    DEFAULT_WORKOUT_START,
     DOMAIN,
     LOGGER,
     MAX_BACKFILL_WEEKS,
+    MAX_WORKOUT_INTERVAL,
     MIN_SCAN_MINUTES,
 )
 
@@ -105,16 +115,26 @@ class LiftosaurOptionsFlow(OptionsFlow):
     """Pick dashboards, polling interval and backfill depth."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
         if user_input is not None:
             user_input[CONF_SCAN_INTERVAL] = int(user_input[CONF_SCAN_INTERVAL])
             user_input[CONF_BACKFILL_WEEKS] = int(user_input[CONF_BACKFILL_WEEKS])
-            return self.async_create_entry(data=user_input)
+            user_input[CONF_WORKOUT_INTERVAL] = int(
+                user_input.get(CONF_WORKOUT_INTERVAL, DEFAULT_WORKOUT_INTERVAL)
+            )
+            if user_input.get(CONF_WORKOUT_WINDOW) and user_input.get(
+                CONF_WORKOUT_START, DEFAULT_WORKOUT_START
+            ) == user_input.get(CONF_WORKOUT_END, DEFAULT_WORKOUT_END):
+                errors[CONF_WORKOUT_END] = "window_empty"
+            else:
+                return self.async_create_entry(data=user_input)
 
-        errors, dashboards = await _validate(self.hass, self.config_entry.data[CONF_API_KEY])
+        validate_errors, dashboards = await _validate(self.hass, self.config_entry.data[CONF_API_KEY])
+        errors = {**validate_errors, **errors}
         options = [
             SelectOptionDict(value=d["id"], label=d.get("name") or d["id"]) for d in dashboards
         ]
-        current = self.config_entry.options
+        current = {**self.config_entry.options, **(user_input or {})}
         schema = vol.Schema(
             {
                 vol.Optional(
@@ -141,6 +161,29 @@ class LiftosaurOptionsFlow(OptionsFlow):
                         max=MAX_BACKFILL_WEEKS,
                         step=1,
                         unit_of_measurement="weeks",
+                        mode=NumberSelectorMode.BOX,
+                    )
+                ),
+                vol.Required(
+                    CONF_WORKOUT_WINDOW, default=current.get(CONF_WORKOUT_WINDOW, False)
+                ): BooleanSelector(),
+                vol.Required(
+                    CONF_WORKOUT_START,
+                    default=current.get(CONF_WORKOUT_START, DEFAULT_WORKOUT_START),
+                ): TimeSelector(),
+                vol.Required(
+                    CONF_WORKOUT_END,
+                    default=current.get(CONF_WORKOUT_END, DEFAULT_WORKOUT_END),
+                ): TimeSelector(),
+                vol.Required(
+                    CONF_WORKOUT_INTERVAL,
+                    default=current.get(CONF_WORKOUT_INTERVAL, DEFAULT_WORKOUT_INTERVAL),
+                ): NumberSelector(
+                    NumberSelectorConfig(
+                        min=1,
+                        max=MAX_WORKOUT_INTERVAL,
+                        step=1,
+                        unit_of_measurement="min",
                         mode=NumberSelectorMode.BOX,
                     )
                 ),

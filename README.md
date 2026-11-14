@@ -56,6 +56,11 @@ Copy `custom_components/liftosaur` into your `config/custom_components/`, restar
 - **Dashboards**: which dashboards to import. Empty means all, including new ones.
 - **Refresh every**: default 30 minutes. Each refresh costs about two API calls per dashboard, plus one.
 - **History to backfill**: weeks, default 52. 0 turns backfill off.
+- **Workout window**: off by default. Turn it on and set when you usually train (say 4:00–5:00) and how often to check during it (default every minute). Inside the window each check is a single small request for recently logged workouts; your dashboards are only re-evaluated when a workout was added or changed, or once per regular interval. Sensors then update about a minute after you finish a workout, quickly enough for automations such as a PR alert to fire while you're still in the gym. Outside the window the regular interval applies, and the first check of the window lands right when it opens. The window can cross midnight.
+
+### Example: celebrate a PR as it happens
+
+With the workout window on, a state trigger on a series such as `sensor.liftosaur_5_3_1_main_lifts_best_e1rm_per_week_squat` fires within a minute of finishing the workout. Compare it to the best you've stored in an `input_number`, update that, then flash a light or announce it on a speaker.
 
 ## Charts
 

@@ -89,12 +89,15 @@ class FakeLiftosaur:
         self.text = text
         self.status = status
         self.preview_calls: list[str] = []
+        self.history: list[dict] = [{"id": 1, "text": "2026-11-13T10:00:00Z / exercises: { Squat / 3x5 300lb }"}]
+        self.history_calls = 0
 
     def register(self, aioclient_mock) -> None:
         aioclient_mock.clear_requests()
         aioclient_mock.get(f"{API_BASE}/dashboards", side_effect=self._list)
         aioclient_mock.get(re.compile(rf"{re.escape(API_BASE)}/dashboards/.+"), side_effect=self._get)
         aioclient_mock.post(f"{API_BASE}/dashboard-preview", side_effect=self._preview)
+        aioclient_mock.get(re.compile(rf"{re.escape(API_BASE)}/history.*"), side_effect=self._history)
 
     def _resp(self, method, url, body):
         return AiohttpClientMockResponse(method, url, status=self.status, json=body)
@@ -106,6 +109,10 @@ class FakeLiftosaur:
 
     async def _get(self, method, url, data):
         return self._resp(method, url, {"data": {"id": "abc", "name": "Strength", "text": self.text, "isCurrent": True}})
+
+    async def _history(self, method, url, data):
+        self.history_calls += 1
+        return self._resp(method, url, {"data": {"records": list(self.history)}})
 
     async def _preview(self, method, url, data):
         text = (data if isinstance(data, dict) else json.loads(data))["text"]

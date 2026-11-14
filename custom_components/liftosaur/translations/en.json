@@ -4,12 +4,16 @@
       "user": {
         "title": "Connect Liftosaur",
         "description": "Create an API key in the Liftosaur app under Settings → API Keys (needs Liftosaur Premium). It starts with lftsk_.",
-        "data": { "api_key": "API key" }
+        "data": {
+          "api_key": "API key"
+        }
       },
       "reauth_confirm": {
         "title": "Re-enter your Liftosaur API key",
         "description": "Liftosaur rejected the saved API key. Create a new one under Settings → API Keys.",
-        "data": { "api_key": "API key" }
+        "data": {
+          "api_key": "API key"
+        }
       }
     },
     "error": {
@@ -29,19 +33,28 @@
         "data": {
           "dashboards": "Dashboards",
           "scan_interval": "Refresh every",
-          "backfill_weeks": "History to backfill"
+          "backfill_weeks": "History to backfill",
+          "workout_window": "Workout window",
+          "workout_start": "Window starts",
+          "workout_end": "Window ends",
+          "workout_interval": "Check every (in the window)"
         },
         "data_description": {
           "dashboards": "Leave empty to include every dashboard, including ones you add later.",
-          "scan_interval": "How often to re-evaluate your dashboards.",
-          "backfill_weeks": "How far back to fill in charts when a sensor first appears. 0 turns backfill off."
+          "scan_interval": "How often to re-evaluate your dashboards outside the workout window.",
+          "backfill_weeks": "How far back to fill in charts when a sensor first appears. 0 turns backfill off.",
+          "workout_window": "Check Liftosaur far more often during your usual training time, so sensors (and automations like PR alerts) update minutes after you finish a workout.",
+          "workout_start": "Local time. The window can cross midnight.",
+          "workout_end": "Local time.",
+          "workout_interval": "In the window each check is one small request; dashboards are re-evaluated only when a workout was added or changed."
         }
       }
     },
     "error": {
       "invalid_auth": "Liftosaur rejected the saved API key.",
       "no_subscription": "The Liftosaur API needs an active premium subscription.",
-      "cannot_connect": "Could not reach Liftosaur."
+      "cannot_connect": "Could not reach Liftosaur.",
+      "window_empty": "The window must start and end at different times."
     }
   },
   "services": {

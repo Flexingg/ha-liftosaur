@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp
 
@@ -87,6 +88,14 @@ class LiftosaurApi:
 
     async def get_dashboard(self, dashboard_id: str) -> dict[str, Any]:
         return await self._request("GET", f"/dashboards/{dashboard_id}")
+
+    async def list_history(self, start_date: str | None = None, limit: int = 200) -> list[dict[str, Any]]:
+        """Workout records, optionally only those since `start_date` (ISO date)."""
+        query = {"limit": str(limit)}
+        if start_date:
+            query["startDate"] = start_date
+        data = await self._request("GET", f"/history?{urlencode(query)}")
+        return list(data.get("records", []))
 
     async def preview(self, text: str) -> dict[str, Any]:
         """Evaluate Liftograph text against the user's data without saving it."""

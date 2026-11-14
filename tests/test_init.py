@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from homeassistant import config_entries
 from homeassistant.components.recorder.statistics import statistics_during_period
@@ -155,3 +155,98 @@ async def test_empty_series_falls_back_to_raw(recorder_mock, hass: HomeAssistant
     # Both forms are empty in the fake, so the raw form is chosen.
     assert spec.history_line == "value / source: stats(Nothing)"
     assert spec.value is None
+
+
+WINDOW = {
+    CONF_BACKFILL_WEEKS: 0,
+    "workout_window": True,
+    "workout_start": "04:00:00",
+    "workout_end": "05:00:00",
+    "workout_interval": 1,
+}
+
+
+def _local(h: int, m: int) -> datetime:
+    return datetime(2026, 11, 14, h, m, tzinfo=dt_util.get_default_time_zone())
+
+
+async def test_workout_window_polls_quickly_and_cheaply(
+    recorder_mock, hass: HomeAssistant, fake_api, freezer
+) -> None:
+    freezer.move_to(_local(4, 10))
+    entry = await _setup(hass, WINDOW)
+    coordinator = entry.runtime_data
+    assert coordinator.update_interval == timedelta(minutes=1)
+    assert coordinator.full_refreshes == 1
+    previews = len(fake_api.preview_calls)
+
+    # Nothing new logged: one history request, no dashboard re-evaluation.
+    freezer.tick(timedelta(minutes=1))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 1
+    assert len(fake_api.preview_calls) == previews
+    assert fake_api.history_calls == 2
+
+    # A workout is logged: the next poll re-evaluates the dashboards.
+    fake_api.history.append({"id": 2, "text": "2026-11-14T09:05:00Z / exercises: { Bench / 3x5 225lb }"})
+    freezer.tick(timedelta(minutes=1))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 2
+    assert len(fake_api.preview_calls) > previews
+
+    # Edits to a logged workout count too.
+    fake_api.history[-1] = {**fake_api.history[-1], "text": "edited"}
+    freezer.tick(timedelta(minutes=1))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 3
+
+    # Even with nothing new, a full refresh still happens every regular interval.
+    freezer.tick(timedelta(minutes=31))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 4
+
+
+async def test_workout_window_closed(recorder_mock, hass: HomeAssistant, fake_api, freezer) -> None:
+    freezer.move_to(_local(3, 50))
+    entry = await _setup(hass, WINDOW)
+    coordinator = entry.runtime_data
+    # Wakes up when the window opens, not 30 minutes later.
+    assert coordinator.update_interval == timedelta(minutes=10)
+    # Outside the window the change check is skipped entirely.
+    assert fake_api.history_calls == 0
+    freezer.move_to(_local(12, 0))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 2
+    assert coordinator.update_interval == timedelta(minutes=30)
+    assert fake_api.history_calls == 0
+
+    # The first poll in the window refreshes fully, even with no new workouts.
+    freezer.move_to(_local(4, 0))
+    await coordinator.async_refresh()
+    assert coordinator.full_refreshes == 3
+    assert coordinator.update_interval == timedelta(minutes=1)
+
+
+async def test_options_flow_workout_window(recorder_mock, hass: HomeAssistant, fake_api, freezer) -> None:
+    freezer.move_to(_local(12, 0))
+    entry = await _setup(hass, {CONF_BACKFILL_WEEKS: 0})
+    base = {"dashboards": [], "scan_interval": 60, "backfill_weeks": 0}
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {**base, "workout_window": True, "workout_start": "04:00:00", "workout_end": "04:00:00", "workout_interval": 1},
+    )
+    assert result["type"] is FlowResultType.FORM
+    assert result["errors"] == {"workout_end": "window_empty"}
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {**base, "workout_window": True, "workout_start": "04:00:00", "workout_end": "05:00:00", "workout_interval": 1},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done(wait_background_tasks=True)
+    coordinator = entry.runtime_data
+    assert coordinator.workout_window is not None
+    assert coordinator.normal_interval == timedelta(minutes=60)
+    assert coordinator.update_interval == timedelta(minutes=60)

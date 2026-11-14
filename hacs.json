@@ -1,0 +1,7 @@
+{
+  "name": "Liftosaur",
+  "homeassistant": "2025.11.0",
+  "render_readme": true,
+  "zip_release": true,
+  "filename": "liftosaur.zip"
+}

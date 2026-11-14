@@ -1,0 +1,24 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set the version from the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          jq --arg v "$version" '.version = $v' custom_components/liftosaur/manifest.json > m.json
+          mv m.json custom_components/liftosaur/manifest.json
+      - name: Zip
+        run: cd custom_components/liftosaur && zip -r ../../liftosaur.zip .
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: liftosaur.zip

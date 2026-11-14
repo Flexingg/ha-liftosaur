@@ -1,0 +1,40 @@
+// ## Strength vs Bodyweight
+row {
+  value / name: Bodyweight / source: stats(weight) / compare: 3m / trend: 6m
+  value / name: Body fat / source: stats(bodyfat) / compare: 3m
+  value / name: Lean mass / source: stats(bodyfat) / compare: 3m {~ point(bodyweight * (1 - value / 100)) ~}
+  value / name: "Total / BW" / source: exercise / compare: 4w / trend: 6m {~
+    if (isExercise("Squat")) { state.sq = max(e1rm) }
+    if (isExercise("Bench Press")) { state.bp = max(e1rm) }
+    if (isExercise("Deadlift")) { state.dl = max(e1rm) }
+    if (state.sq > 0 && state.bp > 0 && state.dl > 0) { point(round((state.sq + state.bp + state.dl) / bodyweight * 100) / 100) }
+  ~}
+}
+
+// **Big-three total (latest e1RMs) vs bodyweight**
+graph / range: 1y {
+  name: Total e1RM / source: exercise / group: last(1w) / color: purple {~
+    if (isExercise("Squat")) { state.sq = max(e1rm) }
+    if (isExercise("Bench Press")) { state.bp = max(e1rm) }
+    if (isExercise("Deadlift")) { state.dl = max(e1rm) }
+    if (state.sq > 0 && state.bp > 0 && state.dl > 0) { point(state.sq + state.bp + state.dl) }
+  ~}
+  name: Bodyweight / source: stats(weight) / group: avg(1w) / axis: right / color: gray
+}
+
+// **e1RM as multiple of bodyweight**
+graph / range: 1y {
+  name: "Squat / BW" / source: exercise(Squat) / smooth: avg(3) / color: red {~ point(max(e1rm) / bodyweight) ~}
+  name: "Bench / BW" / source: exercise(Bench Press) / smooth: avg(3) / color: blue {~ point(max(e1rm) / bodyweight) ~}
+}
+
+calendar / range: 6m
+row {
+  muscles / range: 4w / show: map
+  muscles / range: 4w / show: sets(chest, lats)
+}
+graph / range: 6m {
+  name: TM / source: exercise(Squat, program: "5/3/1 BBB - Squat/Bench/Deadlift/OHP") / group: max(1w) {~ if (numberOfSets >= 3 && week < 4) { point(round(weights[3] / (0.8 + 0.05 * week))) } ~}
+}
+value / name: Long \
+  / source: exercise(Squat) / y: e1rm

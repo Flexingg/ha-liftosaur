@@ -1,0 +1,24 @@
+# Weekly e1RM chart with a year of backfilled history.
+# Entity ids follow sensor.liftosaur_<dashboard>_<widget>; check yours under
+# Settings → Devices & services → Liftosaur.
+type: custom:apexcharts-card
+header:
+  show: true
+  title: e1RM, last 12 months
+graph_span: 52w
+span:
+  end: day
+all_series_config:
+  stroke_width: 2
+  statistics:
+    type: mean
+    period: week
+series:
+  - entity: sensor.liftosaur_5_3_1_main_lifts_best_e1rm_per_week_squat
+    name: Squat
+  - entity: sensor.liftosaur_5_3_1_main_lifts_best_e1rm_per_week_bench
+    name: Bench
+  - entity: sensor.liftosaur_5_3_1_main_lifts_best_e1rm_per_week_deadlift
+    name: Deadlift
+  - entity: sensor.liftosaur_5_3_1_main_lifts_best_e1rm_per_week_ohp
+    name: OHP

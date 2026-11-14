@@ -1,0 +1,59 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Liftosaur",
+        "description": "Create an API key in the Liftosaur app under Settings → API Keys (needs Liftosaur Premium). It starts with lftsk_.",
+        "data": { "api_key": "API key" }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter your Liftosaur API key",
+        "description": "Liftosaur rejected the saved API key. Create a new one under Settings → API Keys.",
+        "data": { "api_key": "API key" }
+      }
+    },
+    "error": {
+      "invalid_auth": "Liftosaur rejected this API key.",
+      "no_subscription": "The Liftosaur API needs an active premium subscription.",
+      "cannot_connect": "Could not reach Liftosaur."
+    },
+    "abort": {
+      "already_configured": "This API key is already set up.",
+      "reauth_successful": "The API key was updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Liftosaur options",
+        "data": {
+          "dashboards": "Dashboards",
+          "scan_interval": "Refresh every",
+          "backfill_weeks": "History to backfill"
+        },
+        "data_description": {
+          "dashboards": "Leave empty to include every dashboard, including ones you add later.",
+          "scan_interval": "How often to re-evaluate your dashboards.",
+          "backfill_weeks": "How far back to fill in charts when a sensor first appears. 0 turns backfill off."
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Liftosaur rejected the saved API key.",
+      "no_subscription": "The Liftosaur API needs an active premium subscription.",
+      "cannot_connect": "Could not reach Liftosaur."
+    }
+  },
+  "services": {
+    "backfill": {
+      "name": "Backfill history",
+      "description": "Re-evaluate every Liftosaur sensor's history and write it into long-term statistics. Use it after editing a dashboard or changing the backfill depth.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Liftosaur account",
+          "description": "Only this account. Leave empty for all."
+        }
+      }
+    }
+  }
+}

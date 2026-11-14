@@ -41,7 +41,7 @@ async def test_sensors_created(recorder_mock, hass: HomeAssistant, fake_api) -> 
     assert "Total / BW" in names
     assert "My graph · Squat / BW" in names
     assert "Week streak" in names
-    assert "Muscle sets per week" in names and "Muscle sets per week" in names
+    assert "Muscle sets per week" in names and "Muscle sets per week (selected)" in names
     # 4 values + 2+2+1 graph series + 1 value + 2 calendar + 2 muscles
     assert len(entities) == 14
 
@@ -87,6 +87,12 @@ async def test_backfill_imports_statistics(recorder_mock, hass: HomeAssistant, f
     # 8 weeks ago the fake series was 100 - 8
     assert rows[0]["mean"] == 92.0
     assert rows[-1]["mean"] == round(100 - 1 / 7, 2)
+
+    # Metadata agrees with what the sensor recorder derives for "lb".
+    from homeassistant.components.recorder.statistics import get_metadata
+
+    meta = await recorder_mock.async_add_executor_job(lambda: get_metadata(hass, statistic_ids={sid}))
+    assert meta[sid][1]["unit_class"] == "mass"
 
     # Second run is a no-op: same definitions.
     calls = len(fake_api.preview_calls)

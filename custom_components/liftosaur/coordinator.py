@@ -283,12 +283,14 @@ class LiftosaurCoordinator(DataUpdateCoordinator[dict[str, DashboardData]]):
                 for g in groups:
                     attrs[g.get("key") or slugify(g.get("name", ""))] = _num(g.get("sets"))
                 total = sum(_num(g.get("sets")) or 0 for g in groups)
+                show = dict(widget.parts).get("show", "")
+                selected = "sets(" in show
                 add(
                     SensorSpec(
-                        key="muscle_sets",
+                        key="muscle_sets_selected" if selected else "muscle_sets",
                         dashboard_id=summary["id"],
                         dashboard_name=name,
-                        name="Muscle sets per week",
+                        name="Muscle sets per week (selected)" if selected else "Muscle sets per week",
                         kind="muscles",
                         value=round(total, 2) if groups else None,
                         unit=result.get("unit") or "sets/week",

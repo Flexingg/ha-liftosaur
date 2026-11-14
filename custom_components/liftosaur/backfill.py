@@ -37,6 +37,20 @@ except ImportError:  # pragma: no cover - older cores
 STORE_VERSION = 1
 
 
+def _unit_class(unit: str | None) -> str | None:
+    """The unit class the sensor recorder gives a sensor with no device class
+    and this unit (lb → mass, h → duration, ...). The imported metadata has to
+    agree with it, or the next hourly compile rewrites it."""
+    try:
+        from homeassistant.components.recorder.statistics import (
+            STATISTIC_UNIT_TO_UNIT_CONVERTER,
+        )
+    except ImportError:  # pragma: no cover
+        return None
+    conv = STATISTIC_UNIT_TO_UNIT_CONVERTER.get(unit)
+    return conv.UNIT_CLASS if conv else None
+
+
 def _signature(spec: SensorSpec, weeks: int) -> str:
     raw = f"{spec.history_line}|{spec.unit}|{weeks}"
     return hashlib.sha1(raw.encode()).hexdigest()[:16]
@@ -130,7 +144,7 @@ async def _backfill(hass: HomeAssistant, entry: LiftosaurConfigEntry, force: boo
             "name": None,
             "source": "recorder",
             "statistic_id": entity_id,
-            "unit_class": None,
+            "unit_class": _unit_class(spec.unit),
             "unit_of_measurement": spec.unit,
         }  # type: ignore[typeddict-item]
         async_import_statistics(hass, metadata, stats)

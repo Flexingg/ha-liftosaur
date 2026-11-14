@@ -1,12 +1,14 @@
 name: Release
 
-# Push a tag like v0.2.0 and this builds liftosaur.zip (with the version set
-# in manifest.json) and publishes a GitHub release for HACS.
+# Bump "version" in custom_components/liftosaur/manifest.json on main and this
+# tags v<version>, builds liftosaur.zip and publishes the GitHub release HACS
+# installs from. Pushing a v* tag yourself works too.
 on:
   push:
+    branches: [main]
+    paths: [custom_components/liftosaur/manifest.json]
     tags: ["v*"]
-  release:
-    types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -16,15 +18,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set the version from the tag
+        with:
+          fetch-depth: 0
+      - name: Work out the version
+        id: v
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          jq --arg v "$version" '.version = $v' custom_components/liftosaur/manifest.json > m.json
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(jq -r .version custom_components/liftosaur/manifest.json)"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" != refs/tags/* ]] && gh release view "v$version" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Set the version in the manifest
+        if: steps.v.outputs.skip != 'true'
+        run: |
+          jq --arg v "${{ steps.v.outputs.version }}" '.version = $v' custom_components/liftosaur/manifest.json > m.json
           mv m.json custom_components/liftosaur/manifest.json
       - name: Zip
+        if: steps.v.outputs.skip != 'true'
         run: cd custom_components/liftosaur && zip -r ../../liftosaur.zip .
       - uses: softprops/action-gh-release@v2
+        if: steps.v.outputs.skip != 'true'
         with:
-          name: ${{ github.ref_name }}
+          tag_name: v${{ steps.v.outputs.version }}
+          name: v${{ steps.v.outputs.version }}
+          target_commitish: ${{ github.sha }}
           generate_release_notes: true
           files: liftosaur.zip

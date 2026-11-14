@@ -1,6 +1,10 @@
 name: Release
 
+# Push a tag like v0.2.0 and this builds liftosaur.zip (with the version set
+# in manifest.json) and publishes a GitHub release for HACS.
 on:
+  push:
+    tags: ["v*"]
   release:
     types: [published]
 
@@ -8,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  zip:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,4 +25,6 @@ jobs:
         run: cd custom_components/liftosaur && zip -r ../../liftosaur.zip .
       - uses: softprops/action-gh-release@v2
         with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
           files: liftosaur.zip
